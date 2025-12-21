@@ -1,9 +1,9 @@
 """
 title: RAG Manifold v3 (Fixed)
 author: OpenWebUI Expert
-description: RAG manifold with multi-collection support, proper citations, and streaming
+description: RAG manifold with multi-collection support, automatic citations, and streaming
 required_open_webui_version: 0.4.0+
-version: 3.2.1
+version: 3.3.0
 license: MIT
 """
 
@@ -19,6 +19,13 @@ logger = logging.getLogger(__name__)
 class Pipeline:
     """
     MANIFOLD pipeline for RAG integration with Ollama.
+
+    NEW in v3.3.0:
+    - Added automatic citation footer appended to all responses
+    - Added SHOW_CITATIONS valve to control citation display
+    - Citations now visible in OpenWebUI GUI with collection, source, and relevance
+    - LLM is instructed to cite sources using [1], [2] reference numbers
+    - Works with both streaming and non-streaming responses
 
     FIXES in v3.2.1:
     - Enhanced logging for multi-collection debugging
@@ -65,6 +72,10 @@ class Pipeline:
             default=True,
             description="Enable RAG augmentation (disable for passthrough)"
         )
+        SHOW_CITATIONS: bool = Field(
+            default=True,
+            description="Append citations footer to LLM responses"
+        )
 
     def __init__(self):
         """Initialize the pipeline."""
@@ -72,6 +83,7 @@ class Pipeline:
         self.name = "RAG Manifold v3"
         self.valves = self.Valves()
         self.pipelines = []
+        self.current_citations = None  # Store citations for the current request
 
         # Load available models from Ollama
         try:
@@ -116,8 +128,15 @@ class Pipeline:
                 augmented_message = self._inject_context(user_message, context)
                 updated_messages = self._update_messages(messages, augmented_message)
                 logger.info(f"[RAG Pipeline] Context: {len(context)} chars")
+
+                # Store citations for appending to response
+                if self.valves.SHOW_CITATIONS and rag_results:
+                    self.current_citations = self._format_citations_footer(rag_results)
+                else:
+                    self.current_citations = None
             else:
                 logger.info("[RAG Pipeline] RAG disabled")
+                self.current_citations = None
 
             # Call upstream
             logger.info(f"[RAG Pipeline] Calling {model_id}...")
@@ -278,6 +297,31 @@ class Pipeline:
         logger.info(f"[RAG Pipeline] Built context with {len(context_parts)} citations, {len(context)} chars total")
         return context
 
+    def _format_citations_footer(self, results: List[Dict[str, Any]]) -> str:
+        """Format citations as a footer to append to LLM responses."""
+        if not results:
+            return ""
+
+        citations = ["\n\n---\n**Sources:**\n"]
+        for i, result in enumerate(results, 1):
+            metadata = result.get("metadata") or {}
+            distance = result.get("distance", "N/A")
+
+            parts = [f"[{i}]"]
+            if "collection" in metadata:
+                parts.append(f"Collection: {metadata['collection']}")
+            if "source" in metadata:
+                parts.append(f"Source: {metadata['source']}")
+            if "type" in metadata:
+                parts.append(f"Type: {metadata['type']}")
+            if "chunk_index" in metadata:
+                parts.append(f"Chunk: {metadata['chunk_index']}")
+            parts.append(f"Relevance: {distance}")
+
+            citations.append(" | ".join(parts))
+
+        return "\n".join(citations)
+
     def _inject_context(self, user_question: str, context: str) -> str:
         """Inject context into user message."""
         if not context:
@@ -285,7 +329,11 @@ class Pipeline:
             return user_question
 
         augmented = f"""Use the following CONTEXT to answer the user question.
-If the answer is not in the context, say you do not know.
+
+IMPORTANT INSTRUCTIONS:
+- When you use information from the context, cite the source using the reference numbers [1], [2], etc.
+- At the end of your response, include a "Sources:" section listing which references you used
+- If the answer is not in the context, say you do not know
 
 --- CONTEXT ---
 {context}
@@ -353,16 +401,23 @@ User question:
             if is_streaming:
                 # FIXED: Parse Ollama streaming response properly
                 logger.info("[RAG Pipeline] Streaming enabled")
-                return self._stream_ollama_response(response)
+                return self._stream_ollama_response_with_citations(response)
             else:
                 # Non-streaming response
                 ollama_response = response.json()
                 logger.info("[RAG Pipeline] Non-streaming response")
+                content = ollama_response.get("message", {}).get("content", "")
+
+                # Append citations if available
+                if self.current_citations:
+                    content += self.current_citations
+                    logger.info("[RAG Pipeline] Appended citations to response")
+
                 return {
                     "choices": [{
                         "message": {
                             "role": "assistant",
-                            "content": ollama_response.get("message", {}).get("content", "")
+                            "content": content
                         }
                     }]
                 }
@@ -382,6 +437,18 @@ User question:
                 return response.iter_lines()
             else:
                 return response.json()
+
+    def _stream_ollama_response_with_citations(self, response) -> Generator[str, None, None]:
+        """
+        Parse Ollama streaming response and yield content with citations appended at end.
+        """
+        for chunk in self._stream_ollama_response(response):
+            yield chunk
+
+        # After streaming is complete, append citations if available
+        if self.current_citations:
+            logger.info("[RAG Pipeline] Appending citations to stream")
+            yield self.current_citations
 
     def _stream_ollama_response(self, response) -> Generator[str, None, None]:
         """
