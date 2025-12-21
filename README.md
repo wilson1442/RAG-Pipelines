@@ -13,8 +13,9 @@ This pipeline acts as a middleware layer that:
 ## Features
 
 ✅ **Multi-Collection Support** - Query multiple document collections simultaneously (e.g., `api_docs,personal_documents`)
+✅ **Automatic Citations in GUI** - Citations automatically appear as a footer in every response
 ✅ **Proper Citations** - Each result includes collection name, source file, document type, and relevance score
-✅ **Streaming Support** - Full support for streaming responses from Ollama
+✅ **Streaming Support** - Full support for streaming responses from Ollama with citations
 ✅ **Flexible Configuration** - All settings exposed via Open WebUI's Valves system
 ✅ **Error Resilience** - Graceful degradation if RAG API is unavailable
 ✅ **Dual API Support** - Works with both Ollama native API and OpenAI-compatible endpoints
@@ -42,6 +43,7 @@ The pipeline exposes the following configuration options (Valves):
 | `UPSTREAM_BASE_URL` | `http://192.168.4.10:11434` | Ollama server base URL |
 | `USE_OLLAMA_NATIVE` | `true` | Use Ollama native API (recommended) vs OpenAI-compatible |
 | `ENABLE_RAG` | `true` | Enable/disable RAG augmentation (useful for debugging) |
+| `SHOW_CITATIONS` | `true` | Automatically append citations footer to all responses |
 
 ## Usage
 
@@ -75,17 +77,20 @@ The pipeline will:
 3. Combines and sorts all 5 results by distance
 4. Injects top 5 results as context with citations
 
-**Context Injected:**
+**LLM Response (in OpenWebUI):**
 ```
-[1] Authentication can be configured via the config.yml file...
-    (distance: 0.23, collection: api_docs, source: auth-guide.pdf, type: text, chunk: 0)
+To configure authentication, you need to edit the config.yml file [1].
+The authentication middleware is located in the src/auth directory [3].
+For production environments, make sure to enable 2FA [2].
 
-[2] Personal notes: Remember to enable 2FA in production...
-    (distance: 0.31, collection: personal_documents, source: security-checklist.md, type: text, chunk: 2)
-
-[3] The authentication middleware is located in...
-    (distance: 0.35, collection: api_docs, source: middleware-docs.pdf, type: text, chunk: 5)
+---
+**Sources:**
+[1] | Collection: api_docs | Source: auth-guide.pdf | Type: text | Chunk: 0 | Relevance: 0.23
+[2] | Collection: personal_documents | Source: security-checklist.md | Type: text | Chunk: 2 | Relevance: 0.31
+[3] | Collection: api_docs | Source: middleware-docs.pdf | Type: text | Chunk: 5 | Relevance: 0.35
 ```
+
+**Note:** Citations are automatically appended to every response when `SHOW_CITATIONS` is enabled (default).
 
 ## RAG API Requirements
 
@@ -184,7 +189,14 @@ Response to User
 
 ## Version History
 
-### v3.2.1 (Latest)
+### v3.3.0 (Latest)
+- ✅ **Automatic citation footer** - Citations now appear in OpenWebUI GUI
+- ✅ Added `SHOW_CITATIONS` valve to control citation display
+- ✅ LLM instructed to cite sources using [1], [2] reference numbers
+- ✅ Citations include collection, source, type, chunk, and relevance
+- ✅ Works with both streaming and non-streaming responses
+
+### v3.2.1
 - ✅ Enhanced logging for multi-collection debugging
 - ✅ Added detailed logging for context building and citation tracking
 - ✅ Optimized single vs multi-collection query paths
