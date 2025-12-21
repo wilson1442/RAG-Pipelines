@@ -1,9 +1,9 @@
 """
 title: RAG Manifold v3 (Fixed)
 author: OpenWebUI Expert
-description: RAG manifold with query API compatibility and proper streaming support
+description: RAG manifold with multi-collection support, proper citations, and streaming
 required_open_webui_version: 0.4.0+
-version: 3.1.0
+version: 3.2.0
 license: MIT
 """
 
@@ -19,6 +19,11 @@ logger = logging.getLogger(__name__)
 class Pipeline:
     """
     MANIFOLD pipeline for RAG integration with Ollama.
+
+    FIXES in v3.2.0:
+    - Added multi-collection support (comma-separated collections)
+    - Added collection name to citations/context
+    - Improved result sorting across multiple collections
 
     FIXES in v3.1.0:
     - Fixed RAG API payload format (collection/n_results)
@@ -36,7 +41,7 @@ class Pipeline:
         )
         DEFAULT_COLLECTION: str = Field(
             default="default",
-            description="Collection name to query (leave empty to skip collection parameter)"
+            description="Collection name(s) to query - supports multiple collections separated by commas (e.g., 'api_docs,personal_documents')"
         )
         TOP_K: int = Field(
             default=5,
@@ -145,17 +150,49 @@ class Pipeline:
 
     def _query_rag(self, query: str) -> List[Dict[str, Any]]:
         """
-        Query RAG API.
-        FIXED: Uses correct schema (collection/n_results) to match query_api.py
+        Query RAG API with multi-collection support.
+        FIXED: Supports multiple collections (comma-separated) and tracks collection per result
         """
+        collections = []
+        if self.valves.DEFAULT_COLLECTION.strip():
+            # Split by comma and strip whitespace
+            collections = [c.strip() for c in self.valves.DEFAULT_COLLECTION.split(",") if c.strip()]
+
+        # If no collections specified, query without collection parameter
+        if not collections:
+            return self._query_single_collection(query, None)
+
+        # Query each collection and combine results
+        all_results = []
+        for collection in collections:
+            logger.info(f"[RAG Pipeline] Querying collection: {collection}")
+            results = self._query_single_collection(query, collection)
+
+            # Tag each result with its collection name
+            for result in results:
+                if "metadata" not in result:
+                    result["metadata"] = {}
+                result["metadata"]["collection"] = collection
+
+            all_results.extend(results)
+
+        # Sort by distance (lower is better) and limit to TOP_K
+        all_results.sort(key=lambda x: x.get("distance", float('inf')))
+        all_results = all_results[:self.valves.TOP_K]
+
+        logger.info(f"[RAG Pipeline] Combined {len(all_results)} results from {len(collections)} collection(s)")
+        return all_results
+
+    def _query_single_collection(self, query: str, collection: str = None) -> List[Dict[str, Any]]:
+        """Query a single collection from the RAG API."""
         payload = {
             "query": query,
-            "n_results": self.valves.TOP_K  # Changed from top_k
+            "n_results": self.valves.TOP_K
         }
 
-        # Add collection if specified (singular string, not list)
-        if self.valves.DEFAULT_COLLECTION.strip():
-            payload["collection"] = self.valves.DEFAULT_COLLECTION  # Changed from collections
+        # Add collection if specified
+        if collection:
+            payload["collection"] = collection
 
         logger.info(f"RAG API request: {payload}")
 
@@ -173,11 +210,11 @@ class Pipeline:
             return results
 
         except Exception as e:
-            logger.error(f"RAG API error: {e}")
+            logger.error(f"RAG API error for collection '{collection}': {e}")
             return []  # Don't crash, just return empty results
 
     def _build_context(self, results: List[Dict[str, Any]]) -> str:
-        """Build context from RAG results."""
+        """Build context from RAG results with collection citations."""
         if not results:
             return ""
 
@@ -191,6 +228,9 @@ class Pipeline:
             chunk += f"    (distance: {distance}"
 
             if metadata:
+                # Include collection name first if available
+                if "collection" in metadata:
+                    chunk += f", collection: {metadata['collection']}"
                 if "source" in metadata:
                     chunk += f", source: {metadata['source']}"
                 if "type" in metadata:
