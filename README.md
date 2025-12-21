@@ -121,40 +121,38 @@ The pipeline expects your RAG API to support the following endpoint:
 
 ## Troubleshooting
 
-### No results from RAG API
+**For detailed troubleshooting steps, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md)**
 
-**Symptoms:** Pipeline works but no context is injected
+### Quick Checks
 
-**Check:**
-- Verify RAG API is accessible at the configured URL
-- Check logs for "RAG API error" messages
-- Test the API directly with curl/Postman
-- Ensure collection names are correct
-
-### Only one collection is searched
-
-**Solution:** This was fixed in v3.2.0. Update to the latest version and ensure collections are comma-separated without quotes:
-```
-api_docs,personal_documents
+**Test the logic:**
+```bash
+python3 test_multi_collection.py
 ```
 
-### Missing collection citations
+**Common Issues:**
 
-**Solution:** Updated in v3.2.0. Each result now includes the collection name in its citation metadata.
+1. **Only one collection is searched**
+   - Verify both collections exist and have documents
+   - Check OpenWebUI logs for `[RAG Pipeline]` messages
+   - Test each collection individually first
+   - See [TROUBLESHOOTING.md](TROUBLESHOOTING.md#issue-1-only-latest-collection-is-being-searched)
 
-### Streaming not working
+2. **Citations not appearing**
+   - Citations are in the context sent to the LLM, not shown directly in UI
+   - Ask the LLM: "What sources did you use?"
+   - Check that your RAG API returns metadata
+   - See [TROUBLESHOOTING.md](TROUBLESHOOTING.md#issue-2-citations-not-appearing)
 
-**Check:**
-- Ensure `USE_OLLAMA_NATIVE` is set to `true`
-- Verify Ollama is running and accessible
-- Check Ollama version (requires recent version with `/api/chat` endpoint)
+3. **No results from RAG API**
+   - Verify RAG API is accessible
+   - Check logs for "RAG API error" messages
+   - Test API directly with curl
 
-### Connection errors to Ollama
-
-**Check:**
-- Verify `UPSTREAM_BASE_URL` is correct
-- Ensure Ollama is running: `ollama serve`
-- Test connection: `curl http://192.168.4.10:11434/api/tags`
+4. **Streaming not working**
+   - Ensure `USE_OLLAMA_NATIVE` is `true`
+   - Verify Ollama is running and accessible
+   - Check Ollama version supports `/api/chat` endpoint
 
 ## Architecture
 
@@ -186,7 +184,14 @@ Response to User
 
 ## Version History
 
-### v3.2.0 (Latest)
+### v3.2.1 (Latest)
+- ✅ Enhanced logging for multi-collection debugging
+- ✅ Added detailed logging for context building and citation tracking
+- ✅ Optimized single vs multi-collection query paths
+- ✅ Added test script for verifying functionality
+- ✅ Added comprehensive troubleshooting guide
+
+### v3.2.0
 - ✅ Added multi-collection support (comma-separated)
 - ✅ Added collection name to citations
 - ✅ Improved result sorting across collections
