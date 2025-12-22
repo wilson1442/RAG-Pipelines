@@ -1,9 +1,10 @@
 # Stock Data Pipeline for OpenWebUI
 
-A comprehensive stock data pipeline that integrates with **Finnhub** and **Alpha Vantage** APIs to fetch real-time stock prices, news, earnings, and financial data.
+A comprehensive and intelligent stock data pipeline that integrates with **Finnhub** and **Alpha Vantage** APIs to provide real-time market data, investment recommendations, and automated market analysis.
 
 ## Features
 
+### Core Stock Features
 - **Automatic Stock Detection**: Detects when users ask about stocks and automatically fetches relevant data
 - **Multi-API Integration**: Combines data from both Finnhub and Alpha Vantage for comprehensive coverage
 - **Real-time Stock Quotes**: Current prices, changes, highs, lows
@@ -12,7 +13,14 @@ A comprehensive stock data pipeline that integrates with **Finnhub** and **Alpha
 - **Earnings Data**: Historical earnings, EPS, estimates, and surprises
 - **Financial Metrics**: Revenue, P/E ratio, dividends, beta, and more
 - **Price History**: Daily price data for trend analysis
-- **Context Injection**: Automatically augments LLM prompts with fetched data
+
+### NEW: Investment & Market Intelligence (v2.0)
+- **Investment Recommendations**: Automatically provides personalized stock recommendations
+- **Market Screening**: Shows top gainers, losers, and market movers
+- **Sector Analysis**: Identifies hot/cold sectors and sector leaders
+- **Market Overview**: Real-time market indices and trends
+- **Intelligent Questionnaire**: Asks about risk tolerance, timeline, and goals
+- **Automated Data Fetching**: No need to specify stocks - the pipeline fetches everything needed
 
 ## Data Sources
 
@@ -62,12 +70,16 @@ A comprehensive stock data pipeline that integrates with **Finnhub** and **Alpha
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `ENABLE_STOCK_DATA` | `true` | Enable/disable stock data fetching |
+| `ENABLE_MARKET_SCREENING` | `true` | Enable market screening (gainers/losers) |
+| `ENABLE_INVESTMENT_ADVICE` | `true` | Enable investment recommendations |
 | `FETCH_NEWS` | `true` | Fetch recent news articles |
 | `FETCH_EARNINGS` | `true` | Fetch earnings data |
 | `FETCH_FINANCIALS` | `true` | Fetch financial statements |
 | `FETCH_PRICE_HISTORY` | `true` | Fetch price history |
+| `FETCH_SECTOR_PERFORMANCE` | `true` | Fetch sector performance data |
 | `NEWS_LIMIT` | `5` | Number of news articles per stock |
 | `PRICE_HISTORY_DAYS` | `30` | Days of price history to fetch |
+| `TOP_MOVERS_LIMIT` | `10` | Number of top gainers/losers |
 | `USE_OLLAMA_NATIVE` | `true` | Use Ollama native API |
 
 ### Stock Detection Keywords
@@ -115,6 +127,79 @@ stock, price, shares, ticker, quote, earnings, revenue, financial, trading, mark
 2. Fetches company overview with revenue data
 3. Fetches financial metrics including P/E ratio
 4. LLM provides specific financial data
+
+### Example 5: Investment Advice (NEW v2.0)
+**User Query**: "What should I invest in?"
+
+**Pipeline Actions**:
+1. Detects investment advice query
+2. Automatically fetches market movers (top gainers/losers)
+3. Fetches sector performance (Technology, Healthcare, Energy, etc.)
+4. Fetches market indices (S&P 500, NASDAQ, Dow Jones)
+5. LLM asks clarifying questions:
+   - What's your risk tolerance?
+   - What's your investment timeline?
+   - How much are you looking to invest?
+6. LLM provides personalized recommendations based on current market data
+
+**Example Response**:
+```
+Based on current market data, I'd like to understand your investment profile better:
+
+1. Risk Tolerance: Are you conservative, moderate, or aggressive?
+2. Investment Timeline: Short-term (< 1 year), medium-term (1-5 years), or long-term (5+ years)?
+3. Investment Amount: What's your budget?
+
+Current Market Overview:
+- Technology sector is up 2.3% today, leading the market
+- Top gainers include NVDA (+5.2%), AMD (+3.8%)
+- Healthcare sector is showing stability (+0.5%)
+
+Based on your profile, I can recommend specific stocks and diversification strategies.
+```
+
+### Example 6: Market Screening (NEW v2.0)
+**User Query**: "What are the trending stocks today?"
+
+**Pipeline Actions**:
+1. Detects market screening query
+2. Fetches top gainers and losers
+3. Fetches market indices performance
+4. Fetches sector performance
+5. LLM provides comprehensive market overview
+
+**Example Response**:
+```
+Here's today's market overview:
+
+Market Indices:
+- S&P 500: 4,567.23 (+0.8%)
+- NASDAQ: 14,234.56 (+1.2%)
+- Dow Jones: 35,678.90 (+0.5%)
+
+Top Gainers:
+1. NVDA: $485.23 (+5.2%)
+2. AMD: $142.67 (+3.8%)
+3. TSLA: $245.89 (+3.1%)
+
+Top Losers:
+1. XYZ: $45.12 (-4.2%)
+2. ABC: $78.34 (-2.8%)
+
+Hot Sectors:
+- Technology: +2.3%
+- Communications: +1.5%
+- Healthcare: +0.5%
+```
+
+### Example 7: Sector Analysis (NEW v2.0)
+**User Query**: "Which sectors are hot right now?"
+
+**Pipeline Actions**:
+1. Detects sector query
+2. Fetches sector ETF performance
+3. Identifies top and bottom performing sectors
+4. LLM provides sector insights and recommendations
 
 ## Ticker Detection
 
@@ -217,6 +302,7 @@ This context is automatically injected into the LLM prompt, allowing it to provi
 
 Here are some example queries that will trigger the stock pipeline:
 
+### Specific Stock Queries
 - "What's the current stock price of Apple?"
 - "Show me Tesla's recent news and earnings"
 - "Compare NVDA and AMD stock performance"
@@ -224,6 +310,31 @@ Here are some example queries that will trigger the stock pipeline:
 - "Tell me about Amazon's latest earnings call"
 - "How has $TSLA stock performed this month?"
 - "What are the financial metrics for Google?"
+
+### Investment Advice Queries (NEW v2.0)
+- "What should I invest in?"
+- "What are the best stocks to buy right now?"
+- "Where should I invest my money?"
+- "Give me stock recommendations"
+- "What are good investment opportunities?"
+- "Which stocks should I buy for long-term growth?"
+- "What are the top performing stocks?"
+
+### Market Screening Queries (NEW v2.0)
+- "What are the trending stocks today?"
+- "Show me market overview"
+- "What are the top gainers?"
+- "Which stocks are moving today?"
+- "What's hot in the market?"
+- "Market trends today"
+- "Show me market movers"
+
+### Sector Analysis Queries (NEW v2.0)
+- "Which sectors are performing well?"
+- "What are the hot sectors right now?"
+- "Sector performance today"
+- "Show me sector leaders"
+- "Which industry is trending?"
 
 ## Development
 

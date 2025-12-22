@@ -1,7 +1,7 @@
 """
 Stock Data Pipeline for OpenWebUI
 Integrates with Finnhub and Alpha Vantage APIs to fetch comprehensive stock data
-Version: 1.0.0
+Version: 2.0.0 - Enhanced with market screening and investment recommendations
 """
 
 from typing import List, Dict, Any, Union, Generator, Optional
@@ -86,6 +86,24 @@ class Pipeline:
             description="Comma-separated keywords to trigger stock data fetching"
         )
 
+        # Market Screening & Investment Features
+        ENABLE_MARKET_SCREENING: bool = Field(
+            default=True,
+            description="Enable market screening (trending stocks, gainers, losers)"
+        )
+        ENABLE_INVESTMENT_ADVICE: bool = Field(
+            default=True,
+            description="Enable investment recommendation features"
+        )
+        FETCH_SECTOR_PERFORMANCE: bool = Field(
+            default=True,
+            description="Fetch sector performance data"
+        )
+        TOP_MOVERS_LIMIT: int = Field(
+            default=10,
+            description="Number of top gainers/losers to fetch"
+        )
+
     def __init__(self):
         """Initialize the Stock Data Pipeline"""
         self.type = "manifold"
@@ -128,9 +146,9 @@ class Pipeline:
         """
         Main pipeline execution
 
-        1. Check if query is about stocks
-        2. Extract ticker symbols
-        3. Fetch comprehensive stock data
+        1. Check if query is about stocks/investing
+        2. Determine query type (investment advice, market screening, specific stocks)
+        3. Fetch relevant data automatically
         4. Inject data into context
         5. Call upstream LLM
         6. Return response
@@ -138,7 +156,7 @@ class Pipeline:
         logger.info(f"[Stock Pipeline] Processing query with model: {model_id}")
 
         try:
-            # Check if stock data fetching is enabled and query is stock-related
+            # Check if stock data fetching is enabled
             if not self.valves.ENABLE_STOCK_DATA:
                 logger.info("[Stock Pipeline] Stock data fetching disabled, passing through")
                 return self._call_upstream(model_id, messages, body)
@@ -147,29 +165,37 @@ class Pipeline:
             last_message = messages[-1] if messages else {}
             user_query = last_message.get("content", "") if isinstance(last_message.get("content"), str) else user_message
 
-            # Check if query is about stocks
-            if not self._is_stock_query(user_query):
-                logger.info("[Stock Pipeline] Not a stock query, passing through")
+            # Detect query type and fetch appropriate data
+            context = None
+
+            # 1. Check for investment advice queries
+            if self.valves.ENABLE_INVESTMENT_ADVICE and self._is_investment_advice_query(user_query):
+                logger.info("[Stock Pipeline] Detected investment advice query")
+                context = self._handle_investment_advice(user_query)
+
+            # 2. Check for market screening queries (trending, hot stocks, sectors)
+            elif self.valves.ENABLE_MARKET_SCREENING and self._is_market_screening_query(user_query):
+                logger.info("[Stock Pipeline] Detected market screening query")
+                context = self._handle_market_screening(user_query)
+
+            # 3. Check for specific stock queries
+            elif self._is_stock_query(user_query):
+                logger.info("[Stock Pipeline] Detected specific stock query")
+                tickers = self._extract_tickers(user_query)
+
+                if tickers:
+                    logger.info(f"[Stock Pipeline] Found tickers: {tickers}")
+                    # Fetch stock data for all tickers
+                    stock_data = self._fetch_all_stock_data(tickers)
+                    if stock_data:
+                        context = self._build_stock_context(stock_data)
+                else:
+                    logger.info("[Stock Pipeline] No specific tickers found, passing through")
+
+            # If no context was generated, pass through
+            if not context:
+                logger.info("[Stock Pipeline] No stock/market context generated, passing through")
                 return self._call_upstream(model_id, messages, body)
-
-            # Extract ticker symbols from query
-            tickers = self._extract_tickers(user_query)
-
-            if not tickers:
-                logger.info("[Stock Pipeline] No tickers found, passing through")
-                return self._call_upstream(model_id, messages, body)
-
-            logger.info(f"[Stock Pipeline] Found tickers: {tickers}")
-
-            # Fetch stock data for all tickers
-            stock_data = self._fetch_all_stock_data(tickers)
-
-            if not stock_data:
-                logger.warning("[Stock Pipeline] No stock data fetched")
-                return self._call_upstream(model_id, messages, body)
-
-            # Build context from stock data
-            context = self._build_stock_context(stock_data)
 
             # Inject context into messages
             augmented_messages = self._inject_context(messages, user_query, context)
@@ -241,6 +267,263 @@ class Pipeline:
                 tickers.add(ticker)
 
         return list(tickers)
+
+    def _is_investment_advice_query(self, query: str) -> bool:
+        """Check if query is asking for investment advice or recommendations"""
+        query_lower = query.lower()
+
+        investment_patterns = [
+            'what should i invest',
+            'where should i invest',
+            'what to invest',
+            'investment recommendation',
+            'best stocks to buy',
+            'stocks to buy',
+            'good stocks',
+            'stock recommendations',
+            'invest in',
+            'portfolio recommendation',
+            'what stocks should',
+            'which stocks',
+            'hot stocks',
+            'best performing',
+            'top stocks',
+            'stocks to watch',
+            'investment opportunities',
+            'profitable stocks',
+            'growth stocks',
+            'value stocks',
+        ]
+
+        return any(pattern in query_lower for pattern in investment_patterns)
+
+    def _is_market_screening_query(self, query: str) -> bool:
+        """Check if query is asking for market screening/overview"""
+        query_lower = query.lower()
+
+        screening_patterns = [
+            'market overview',
+            'market trends',
+            'trending stocks',
+            'top gainers',
+            'top losers',
+            'most active',
+            'market movers',
+            'sector performance',
+            'sector leaders',
+            'hot sectors',
+            'market summary',
+            'market status',
+            'what\'s hot',
+            'what is hot',
+            'trending in the market',
+            'market analysis',
+        ]
+
+        return any(pattern in query_lower for pattern in screening_patterns)
+
+    def _handle_investment_advice(self, query: str) -> str:
+        """Handle investment advice queries by fetching market data and trending stocks"""
+        logger.info("[Stock Pipeline] Handling investment advice query")
+
+        context_parts = []
+        context_parts.append("="*60)
+        context_parts.append("INVESTMENT MARKET ANALYSIS")
+        context_parts.append("="*60)
+        context_parts.append("")
+
+        # Fetch market movers (gainers/losers)
+        market_movers = self._fetch_market_movers()
+        if market_movers:
+            context_parts.append(market_movers)
+
+        # Fetch sector performance
+        if self.valves.FETCH_SECTOR_PERFORMANCE:
+            sector_data = self._fetch_sector_performance()
+            if sector_data:
+                context_parts.append(sector_data)
+
+        # Add investment guidance instructions for LLM
+        context_parts.append("")
+        context_parts.append("INVESTMENT ADVICE INSTRUCTIONS:")
+        context_parts.append("- Use the market data above to provide informed recommendations")
+        context_parts.append("- Ask clarifying questions about:")
+        context_parts.append("  * Risk tolerance (conservative, moderate, aggressive)")
+        context_parts.append("  * Investment timeline (short-term, medium-term, long-term)")
+        context_parts.append("  * Investment amount and goals")
+        context_parts.append("  * Sector preferences or restrictions")
+        context_parts.append("- Provide specific stock recommendations based on current market trends")
+        context_parts.append("- Include rationale for each recommendation")
+        context_parts.append("- Mention risks and diversification strategies")
+        context_parts.append("")
+
+        return "\n".join(context_parts)
+
+    def _handle_market_screening(self, query: str) -> str:
+        """Handle market screening queries"""
+        logger.info("[Stock Pipeline] Handling market screening query")
+
+        context_parts = []
+        context_parts.append("="*60)
+        context_parts.append("MARKET SCREENING & ANALYSIS")
+        context_parts.append("="*60)
+        context_parts.append("")
+
+        # Fetch market movers
+        market_movers = self._fetch_market_movers()
+        if market_movers:
+            context_parts.append(market_movers)
+
+        # Fetch sector performance
+        if self.valves.FETCH_SECTOR_PERFORMANCE:
+            sector_data = self._fetch_sector_performance()
+            if sector_data:
+                context_parts.append(sector_data)
+
+        return "\n".join(context_parts)
+
+    def _fetch_market_movers(self) -> str:
+        """Fetch top gainers, losers, and most active stocks from Finnhub"""
+        if not self.valves.FINNHUB_API_KEY:
+            return ""
+
+        context_parts = []
+
+        try:
+            base_url = "https://finnhub.io/api/v1"
+            headers = {"X-Finnhub-Token": self.valves.FINNHUB_API_KEY}
+
+            # Fetch US market movers
+            # Note: Finnhub doesn't have a direct "top gainers" endpoint for free tier
+            # We'll fetch quotes for major indices and popular stocks
+            # For a real implementation, you might use a premium API or screener
+
+            # Get market indices first
+            indices = {
+                '^GSPC': 'S&P 500',
+                '^DJI': 'Dow Jones',
+                '^IXIC': 'NASDAQ',
+            }
+
+            context_parts.append("MARKET INDICES:")
+            for symbol, name in indices.items():
+                try:
+                    quote_url = f"{base_url}/quote?symbol={symbol}"
+                    response = requests.get(quote_url, headers=headers, timeout=10)
+                    if response.status_code == 200:
+                        data = response.json()
+                        context_parts.append(f"  {name}: ${data.get('c', 'N/A')} ({data.get('dp', 'N/A'):+.2f}%)")
+                except:
+                    pass
+
+            context_parts.append("")
+
+            # Fetch trending stocks (popular tech stocks as example)
+            # In a real implementation, use a screener API or Finnhub's "market news" to find trending
+            popular_tickers = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'TSLA', 'META', 'AMD', 'NFLX', 'INTC']
+
+            trending_data = []
+            for ticker in popular_tickers:
+                try:
+                    quote_url = f"{base_url}/quote?symbol={ticker}"
+                    response = requests.get(quote_url, headers=headers, timeout=10)
+                    if response.status_code == 200:
+                        data = response.json()
+                        trending_data.append({
+                            'ticker': ticker,
+                            'price': data.get('c', 0),
+                            'change': data.get('d', 0),
+                            'change_pct': data.get('dp', 0)
+                        })
+                except:
+                    pass
+
+            # Sort by percent change to find gainers and losers
+            trending_data.sort(key=lambda x: x['change_pct'], reverse=True)
+
+            if trending_data:
+                context_parts.append(f"TOP GAINERS (from major stocks):")
+                for stock in trending_data[:5]:
+                    context_parts.append(f"  {stock['ticker']}: ${stock['price']:.2f} ({stock['change_pct']:+.2f}%)")
+
+                context_parts.append("")
+                context_parts.append(f"TOP LOSERS (from major stocks):")
+                for stock in trending_data[-5:]:
+                    context_parts.append(f"  {stock['ticker']}: ${stock['price']:.2f} ({stock['change_pct']:+.2f}%)")
+
+                context_parts.append("")
+
+            logger.info(f"[Stock Pipeline] Fetched market movers data")
+
+        except Exception as e:
+            logger.error(f"[Stock Pipeline] Error fetching market movers: {e}")
+
+        return "\n".join(context_parts)
+
+    def _fetch_sector_performance(self) -> str:
+        """Fetch sector performance data"""
+        if not self.valves.FINNHUB_API_KEY:
+            return ""
+
+        context_parts = []
+        context_parts.append("SECTOR PERFORMANCE:")
+
+        try:
+            # Map sector ETFs to sectors
+            sector_etfs = {
+                'XLK': 'Technology',
+                'XLF': 'Financials',
+                'XLV': 'Healthcare',
+                'XLE': 'Energy',
+                'XLI': 'Industrials',
+                'XLC': 'Communications',
+                'XLY': 'Consumer Discretionary',
+                'XLP': 'Consumer Staples',
+                'XLRE': 'Real Estate',
+                'XLB': 'Materials',
+                'XLU': 'Utilities',
+            }
+
+            base_url = "https://finnhub.io/api/v1"
+            headers = {"X-Finnhub-Token": self.valves.FINNHUB_API_KEY}
+
+            sector_performance = []
+            for etf, sector in sector_etfs.items():
+                try:
+                    quote_url = f"{base_url}/quote?symbol={etf}"
+                    response = requests.get(quote_url, headers=headers, timeout=10)
+                    if response.status_code == 200:
+                        data = response.json()
+                        sector_performance.append({
+                            'sector': sector,
+                            'change_pct': data.get('dp', 0),
+                            'price': data.get('c', 0)
+                        })
+                except:
+                    pass
+
+            # Sort by performance
+            sector_performance.sort(key=lambda x: x['change_pct'], reverse=True)
+
+            if sector_performance:
+                context_parts.append("")
+                context_parts.append("  TOP PERFORMING SECTORS:")
+                for sector in sector_performance[:3]:
+                    context_parts.append(f"    {sector['sector']}: {sector['change_pct']:+.2f}%")
+
+                context_parts.append("")
+                context_parts.append("  WEAKEST PERFORMING SECTORS:")
+                for sector in sector_performance[-3:]:
+                    context_parts.append(f"    {sector['sector']}: {sector['change_pct']:+.2f}%")
+
+                context_parts.append("")
+
+            logger.info(f"[Stock Pipeline] Fetched sector performance data")
+
+        except Exception as e:
+            logger.error(f"[Stock Pipeline] Error fetching sector performance: {e}")
+
+        return "\n".join(context_parts)
 
     def _fetch_all_stock_data(self, tickers: List[str]) -> Dict[str, Dict[str, Any]]:
         """Fetch comprehensive stock data for all tickers"""

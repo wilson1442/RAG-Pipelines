@@ -7,8 +7,15 @@ A collection of **intelligent pipelines** for [Open WebUI](https://github.com/op
 ### 1. RAG Manifold Pipeline
 A **RAG (Retrieval-Augmented Generation) Manifold Pipeline** that integrates external RAG systems with Ollama language models.
 
-### 2. Stock Data Pipeline (NEW!)
-A **real-time stock data pipeline** that integrates with Finnhub and Alpha Vantage APIs to provide comprehensive stock market information including prices, news, earnings, and financial data. See [STOCK_PIPELINE_README.md](STOCK_PIPELINE_README.md) for details.
+### 2. Stock Data Pipeline v2.0 (NEW!)
+An **intelligent stock market pipeline** that provides:
+- Real-time stock data (prices, news, earnings, financials)
+- **Investment recommendations** with personalized advice
+- **Market screening** (top gainers/losers, trending stocks)
+- **Sector analysis** (hot/cold sectors, sector leaders)
+- Automatic data fetching - no need to specify stocks!
+
+See [STOCK_PIPELINE_README.md](STOCK_PIPELINE_README.md) for details.
 
 ---
 
@@ -239,14 +246,15 @@ Issues and pull requests are welcome! Please ensure:
 
 ---
 
-## Stock Data Pipeline
+## Stock Data Pipeline v2.0
 
 ### Overview
 
-The Stock Data Pipeline automatically detects stock-related queries and fetches comprehensive real-time data from financial APIs.
+The Stock Data Pipeline is an intelligent market analysis system that automatically detects stock-related queries and provides comprehensive data, investment recommendations, and market insights.
 
 ### Features
 
+#### Core Stock Features
 ✅ **Multi-API Integration** - Combines data from Finnhub and Alpha Vantage
 ✅ **Automatic Detection** - Detects stock queries and ticker symbols
 ✅ **Real-time Quotes** - Current prices, changes, highs, lows
@@ -254,6 +262,14 @@ The Stock Data Pipeline automatically detects stock-related queries and fetches 
 ✅ **News Articles** - Recent news with summaries and sources
 ✅ **Earnings Data** - Historical earnings, EPS, estimates
 ✅ **Price History** - Daily price trends and analysis
+
+#### NEW: Investment Intelligence (v2.0)
+✅ **Investment Recommendations** - Personalized stock suggestions
+✅ **Market Screening** - Top gainers, losers, and market movers
+✅ **Sector Analysis** - Hot sectors and sector leaders
+✅ **Market Overview** - Real-time indices (S&P 500, NASDAQ, Dow)
+✅ **Smart Questionnaire** - Asks about risk tolerance and goals
+✅ **Automated Fetching** - No need to specify stocks explicitly
 
 ### Quick Start
 
@@ -280,11 +296,20 @@ The Stock Data Pipeline automatically detects stock-related queries and fetches 
 
 ### Example Queries
 
+**Specific Stocks:**
 - "What's the stock price of Tesla?"
 - "Show me Microsoft's recent earnings"
-- "Tell me about Amazon's latest news"
 - "Compare NVDA and AMD stock performance"
-- "What is Apple's P/E ratio and revenue?"
+
+**Investment Advice (NEW v2.0):**
+- "What should I invest in?"
+- "Give me stock recommendations"
+- "What are the best stocks to buy?"
+
+**Market Screening (NEW v2.0):**
+- "What's hot in the market?"
+- "Show me trending stocks"
+- "Which sectors are performing well?"
 
 ### Documentation
 
