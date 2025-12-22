@@ -1,8 +1,27 @@
 # RAG Pipelines
 
-A **RAG (Retrieval-Augmented Generation) Manifold Pipeline** for [Open WebUI](https://github.com/open-webui/open-webui) that integrates external RAG systems with Ollama language models.
+A collection of **intelligent pipelines** for [Open WebUI](https://github.com/open-webui/open-webui) that enhance LLM capabilities with external data sources.
 
-## Overview
+## Available Pipelines
+
+### 1. RAG Manifold Pipeline
+A **RAG (Retrieval-Augmented Generation) Manifold Pipeline** that integrates external RAG systems with Ollama language models.
+
+### 2. Stock Data Pipeline v2.0 (NEW!)
+An **intelligent stock market pipeline** that provides:
+- Real-time stock data (prices, news, earnings, financials)
+- **Investment recommendations** with personalized advice
+- **Market screening** (top gainers/losers, trending stocks)
+- **Sector analysis** (hot/cold sectors, sector leaders)
+- Automatic data fetching - no need to specify stocks!
+
+See [STOCK_PIPELINE_README.md](STOCK_PIPELINE_README.md) for details.
+
+---
+
+## RAG Manifold Pipeline
+
+### Overview
 
 This pipeline acts as a middleware layer that:
 1. Queries an external RAG API to retrieve relevant documents based on user questions
@@ -224,6 +243,81 @@ Issues and pull requests are welcome! Please ensure:
 - Code follows existing style
 - All features are tested with Open WebUI
 - Documentation is updated
+
+---
+
+## Stock Data Pipeline v2.0
+
+### Overview
+
+The Stock Data Pipeline is an intelligent market analysis system that automatically detects stock-related queries and provides comprehensive data, investment recommendations, and market insights.
+
+### Features
+
+#### Core Stock Features
+✅ **Multi-API Integration** - Combines data from Finnhub and Alpha Vantage
+✅ **Automatic Detection** - Detects stock queries and ticker symbols
+✅ **Real-time Quotes** - Current prices, changes, highs, lows
+✅ **Company Data** - Profiles, financials, market cap, revenue
+✅ **News Articles** - Recent news with summaries and sources
+✅ **Earnings Data** - Historical earnings, EPS, estimates
+✅ **Price History** - Daily price trends and analysis
+
+#### NEW: Investment Intelligence (v2.0)
+✅ **Investment Recommendations** - Personalized stock suggestions
+✅ **Market Screening** - Top gainers, losers, and market movers
+✅ **Sector Analysis** - Hot sectors and sector leaders
+✅ **Market Overview** - Real-time indices (S&P 500, NASDAQ, Dow)
+✅ **Smart Questionnaire** - Asks about risk tolerance and goals
+✅ **Automated Fetching** - No need to specify stocks explicitly
+
+### Quick Start
+
+1. **Get API Keys**
+   - Finnhub: https://finnhub.io (free tier available)
+   - Alpha Vantage: https://www.alphavantage.co (free tier available)
+
+2. **Install Pipeline**
+   ```bash
+   cp stock_data_pipeline.py /path/to/openwebui/pipelines/
+   ```
+
+3. **Configure in OpenWebUI**
+   - Set `FINNHUB_API_KEY`
+   - Set `ALPHA_VANTAGE_API_KEY`
+   - Set `UPSTREAM_BASE_URL` (your Ollama URL)
+
+4. **Test It**
+   ```
+   User: "What's the current price of Apple stock?"
+   Pipeline: [Fetches AAPL data from APIs]
+   LLM: "Apple (AAPL) is currently trading at $178.50, up $2.30 (1.31%)..."
+   ```
+
+### Example Queries
+
+**Specific Stocks:**
+- "What's the stock price of Tesla?"
+- "Show me Microsoft's recent earnings"
+- "Compare NVDA and AMD stock performance"
+
+**Investment Advice (NEW v2.0):**
+- "What should I invest in?"
+- "Give me stock recommendations"
+- "What are the best stocks to buy?"
+
+**Market Screening (NEW v2.0):**
+- "What's hot in the market?"
+- "Show me trending stocks"
+- "Which sectors are performing well?"
+
+### Documentation
+
+For detailed documentation, see:
+- [STOCK_PIPELINE_README.md](STOCK_PIPELINE_README.md) - Complete guide
+- [stock_pipeline_config_example.md](stock_pipeline_config_example.md) - Configuration examples
+
+---
 
 ## Support
 
