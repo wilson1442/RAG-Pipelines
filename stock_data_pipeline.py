@@ -12,9 +12,20 @@ import json
 import re
 from datetime import datetime, timedelta
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Configure logging - safe for OpenWebUI
+try:
+    logger = logging.getLogger(__name__)
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setLevel(logging.INFO)
+        formatter = logging.Formatter('[%(name)s] %(levelname)s: %(message)s')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+except Exception as e:
+    # Fallback to basic logger if configuration fails
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
 
 
 class Pipeline:
@@ -106,39 +117,66 @@ class Pipeline:
 
     def __init__(self):
         """Initialize the Stock Data Pipeline"""
-        self.type = "manifold"
-        self.id = "stock_data_pipeline"
-        self.name = "Stock Data Pipeline"
-        self.valves = self.Valves()
+        try:
+            self.type = "manifold"
+            self.id = "stock_data_pipeline"
+            self.name = "Stock Data Pipeline"
+            self.valves = self.Valves()
 
-        # Cache for API responses (simple in-memory cache)
-        self._cache = {}
-        self._cache_ttl = 300  # 5 minutes in seconds
+            # Cache for API responses (simple in-memory cache)
+            self._cache = {}
+            self._cache_ttl = 300  # 5 minutes in seconds
 
-        logger.info(f"[Stock Pipeline] Initialized: {self.name}")
+            logger.info(f"[Stock Pipeline] Initialized: {self.name}")
+        except Exception as e:
+            logger.error(f"[Stock Pipeline] Initialization error: {e}")
+            # Set safe defaults
+            self.type = "manifold"
+            self.id = "stock_data_pipeline"
+            self.name = "Stock Data Pipeline"
+            self.valves = self.Valves()
+            self._cache = {}
+            self._cache_ttl = 300
 
     def get_models(self) -> List[Dict[str, str]]:
         """Fetch available models from upstream Ollama instance"""
         try:
-            if self.valves.UPSTREAM_BASE_URL:
-                response = requests.get(
-                    f"{self.valves.UPSTREAM_BASE_URL}/api/tags",
-                    timeout=5
-                )
-                response.raise_for_status()
-                models = response.json().get("models", [])
+            if not hasattr(self, 'valves') or not self.valves:
+                return [{"id": "default", "name": "default"}]
 
-                return [
-                    {
-                        "id": model.get("name", "unknown"),
-                        "name": model.get("name", "unknown")
-                    }
-                    for model in models
-                ]
+            if not self.valves.UPSTREAM_BASE_URL:
+                return [{"id": "default", "name": "default"}]
+
+            response = requests.get(
+                f"{self.valves.UPSTREAM_BASE_URL}/api/tags",
+                timeout=3  # Reduced timeout
+            )
+
+            if response.status_code != 200:
+                logger.warning(f"[Stock Pipeline] Failed to fetch models: HTTP {response.status_code}")
+                return [{"id": "default", "name": "default"}]
+
+            models = response.json().get("models", [])
+
+            if not models:
+                return [{"id": "default", "name": "default"}]
+
+            return [
+                {
+                    "id": model.get("name", "unknown"),
+                    "name": model.get("name", "unknown")
+                }
+                for model in models
+            ]
+        except requests.exceptions.Timeout:
+            logger.warning(f"[Stock Pipeline] Timeout fetching models")
+            return [{"id": "default", "name": "default"}]
+        except requests.exceptions.ConnectionError:
+            logger.warning(f"[Stock Pipeline] Connection error fetching models")
+            return [{"id": "default", "name": "default"}]
         except Exception as e:
-            logger.error(f"[Stock Pipeline] Failed to fetch models: {e}")
-
-        return [{"id": "default", "name": "default"}]
+            logger.error(f"[Stock Pipeline] Error fetching models: {e}")
+            return [{"id": "default", "name": "default"}]
 
     def pipe(
         self, user_message: str, model_id: str, messages: List[dict], body: dict
