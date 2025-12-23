@@ -123,6 +123,9 @@ class Pipeline:
             self.name = "Stock Data Pipeline"
             self.valves = self.Valves()
 
+            # Required for manifold pipelines - list of available pipelines
+            self.pipelines = []
+
             # Cache for API responses (simple in-memory cache)
             self._cache = {}
             self._cache_ttl = 300  # 5 minutes in seconds
@@ -135,6 +138,7 @@ class Pipeline:
             self.id = "stock_data_pipeline"
             self.name = "Stock Data Pipeline"
             self.valves = self.Valves()
+            self.pipelines = []
             self._cache = {}
             self._cache_ttl = 300
 
