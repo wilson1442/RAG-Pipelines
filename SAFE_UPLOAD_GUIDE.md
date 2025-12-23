@@ -22,12 +22,17 @@ I've made the pipeline much more robust to prevent crashes:
 
 ## Common Upload Issues & Solutions
 
-### Issue 1: "Pipeline server went offline"
+### Issue 1: "'Pipeline' object has no attribute 'pipelines'"
+**Cause**: OpenWebUI expects manifold pipelines to have a `pipelines` attribute
+
+**Solution**: ✅ FIXED in latest version. The pipeline now includes `self.pipelines = []` in initialization.
+
+### Issue 2: "Pipeline server went offline"
 **Cause**: Network timeout when trying to fetch models from Ollama during upload
 
 **Solution**: The pipeline now has 3-second timeouts and better fallbacks. This should be fixed in v2.1.
 
-### Issue 2: "Error loading pipeline"
+### Issue 3: "Error loading pipeline"
 **Possible causes**:
 1. Syntax error in Python code
 2. Import error (missing dependencies)
