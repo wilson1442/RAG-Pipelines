@@ -49,16 +49,6 @@ class Pipeline:
             description="Alpha Vantage API Key (get from https://www.alphavantage.co)"
         )
 
-        # Upstream Ollama/LLM Configuration
-        UPSTREAM_BASE_URL: str = Field(
-            default="http://192.168.4.10:11434",
-            description="Ollama base URL"
-        )
-        USE_OLLAMA_NATIVE: bool = Field(
-            default=True,
-            description="Use Ollama native API (vs OpenAI-compatible)"
-        )
-
         # Pipeline Settings
         ENABLE_STOCK_DATA: bool = Field(
             default=True,
@@ -118,13 +108,10 @@ class Pipeline:
     def __init__(self):
         """Initialize the Stock Data Pipeline"""
         try:
-            self.type = "manifold"
+            self.type = "filter"  # Filter type - works with any selected model
             self.id = "stock_data_pipeline"
             self.name = "Stock Data Pipeline"
             self.valves = self.Valves()
-
-            # Required for manifold pipelines - list of available pipelines
-            self.pipelines = []
 
             # Cache for API responses (simple in-memory cache)
             self._cache = {}
@@ -134,66 +121,24 @@ class Pipeline:
         except Exception as e:
             logger.error(f"[Stock Pipeline] Initialization error: {e}")
             # Set safe defaults
-            self.type = "manifold"
+            self.type = "filter"
             self.id = "stock_data_pipeline"
             self.name = "Stock Data Pipeline"
             self.valves = self.Valves()
-            self.pipelines = []
             self._cache = {}
             self._cache_ttl = 300
 
-    def get_models(self) -> List[Dict[str, str]]:
-        """Fetch available models from upstream Ollama instance"""
-        try:
-            if not hasattr(self, 'valves') or not self.valves:
-                return [{"id": "default", "name": "default"}]
-
-            if not self.valves.UPSTREAM_BASE_URL:
-                return [{"id": "default", "name": "default"}]
-
-            response = requests.get(
-                f"{self.valves.UPSTREAM_BASE_URL}/api/tags",
-                timeout=3  # Reduced timeout
-            )
-
-            if response.status_code != 200:
-                logger.warning(f"[Stock Pipeline] Failed to fetch models: HTTP {response.status_code}")
-                return [{"id": "default", "name": "default"}]
-
-            models = response.json().get("models", [])
-
-            if not models:
-                return [{"id": "default", "name": "default"}]
-
-            return [
-                {
-                    "id": model.get("name", "unknown"),
-                    "name": model.get("name", "unknown")
-                }
-                for model in models
-            ]
-        except requests.exceptions.Timeout:
-            logger.warning(f"[Stock Pipeline] Timeout fetching models")
-            return [{"id": "default", "name": "default"}]
-        except requests.exceptions.ConnectionError:
-            logger.warning(f"[Stock Pipeline] Connection error fetching models")
-            return [{"id": "default", "name": "default"}]
-        except Exception as e:
-            logger.error(f"[Stock Pipeline] Error fetching models: {e}")
-            return [{"id": "default", "name": "default"}]
-
     def pipe(
         self, user_message: str, model_id: str, messages: List[dict], body: dict
-    ) -> Union[str, Generator, dict]:
+    ) -> dict:
         """
-        Main pipeline execution
+        Main pipeline execution (Filter type)
 
         1. Check if query is about stocks/investing
         2. Determine query type (investment advice, market screening, specific stocks)
         3. Fetch relevant data automatically
         4. Inject data into context
-        5. Call upstream LLM
-        6. Return response
+        5. Return modified body for OpenWebUI to send to selected model
         """
         logger.info(f"[Stock Pipeline] Processing query with model: {model_id}")
 
@@ -201,7 +146,7 @@ class Pipeline:
             # Check if stock data fetching is enabled
             if not self.valves.ENABLE_STOCK_DATA:
                 logger.info("[Stock Pipeline] Stock data fetching disabled, passing through")
-                return self._call_upstream(model_id, messages, body)
+                return body
 
             # Extract the last user message
             last_message = messages[-1] if messages else {}
@@ -234,21 +179,23 @@ class Pipeline:
                 else:
                     logger.info("[Stock Pipeline] No specific tickers found, passing through")
 
-            # If no context was generated, pass through
+            # If no context was generated, pass through unchanged
             if not context:
                 logger.info("[Stock Pipeline] No stock/market context generated, passing through")
-                return self._call_upstream(model_id, messages, body)
+                return body
 
             # Inject context into messages
             augmented_messages = self._inject_context(messages, user_query, context)
 
-            # Call upstream LLM with augmented context
-            return self._call_upstream(model_id, augmented_messages, body)
+            # Return modified body with augmented messages
+            body["messages"] = augmented_messages
+            logger.info(f"[Stock Pipeline] Returning augmented messages to OpenWebUI")
+            return body
 
         except Exception as e:
             logger.error(f"[Stock Pipeline] Error in pipe: {e}", exc_info=True)
-            # On error, pass through to upstream
-            return self._call_upstream(model_id, messages, body)
+            # On error, pass through unchanged
+            return body
 
     def _is_stock_query(self, query: str) -> bool:
         """Check if query is related to stocks"""
@@ -848,78 +795,3 @@ User question:
 
         logger.info(f"[Stock Pipeline] Injected stock data context ({len(context)} chars)")
         return new_messages
-
-    def _call_upstream(
-        self, model_id: str, messages: List[dict], body: dict
-    ) -> Union[str, Generator, dict]:
-        """Call upstream Ollama/LLM with the messages"""
-        try:
-            logger.info(f"[Stock Pipeline] Calling upstream model: {model_id}")
-
-            # Determine if streaming
-            is_streaming = body.get("stream", False)
-
-            if self.valves.USE_OLLAMA_NATIVE:
-                # Use Ollama native API
-                url = f"{self.valves.UPSTREAM_BASE_URL}/api/chat"
-                payload = {
-                    "model": model_id,
-                    "messages": messages,
-                    "stream": is_streaming,
-                    "options": body.get("options", {})
-                }
-            else:
-                # Use OpenAI-compatible API
-                url = f"{self.valves.UPSTREAM_BASE_URL}/v1/chat/completions"
-                payload = body.copy()
-                payload["model"] = model_id
-                payload["messages"] = messages
-
-            response = requests.post(
-                url,
-                json=payload,
-                stream=is_streaming,
-                timeout=120
-            )
-            response.raise_for_status()
-
-            if is_streaming:
-                return self._stream_response(response)
-            else:
-                return response.json()
-
-        except Exception as e:
-            logger.error(f"[Stock Pipeline] Error calling upstream: {e}")
-            return f"Error: {str(e)}"
-
-    def _stream_response(self, response) -> Generator:
-        """Stream response from Ollama"""
-        try:
-            for line in response.iter_lines():
-                if line:
-                    try:
-                        data = json.loads(line.decode('utf-8'))
-
-                        # Ollama native format
-                        if "message" in data:
-                            content = data["message"].get("content", "")
-                            if content:
-                                yield content
-                        # OpenAI format
-                        elif "choices" in data:
-                            for choice in data["choices"]:
-                                delta = choice.get("delta", {})
-                                content = delta.get("content", "")
-                                if content:
-                                    yield content
-
-                        # Check if done
-                        if data.get("done", False):
-                            break
-
-                    except json.JSONDecodeError:
-                        continue
-
-        except Exception as e:
-            logger.error(f"[Stock Pipeline] Error streaming response: {e}")
-            yield f"\nError: {str(e)}"
