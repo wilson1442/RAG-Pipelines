@@ -4,10 +4,20 @@ A collection of **intelligent pipelines** for [Open WebUI](https://github.com/op
 
 ## Available Pipelines
 
-### 1. RAG Manifold Pipeline
+### 1. File Upload Filter - CSV/XLSX Analysis (NEW!)
+A **filter pipeline** that automatically processes uploaded CSV and XLSX files and makes their contents available for LLM analysis:
+- Automatic detection and parsing of spreadsheet files
+- Smart data extraction with multiple output formats (Markdown, CSV, JSON)
+- Data statistics and previews
+- Configurable row/column limits
+- Zero configuration - works out of the box!
+
+See [FILE_UPLOAD_FILTER_README.md](FILE_UPLOAD_FILTER_README.md) for details.
+
+### 2. RAG Manifold Pipeline
 A **RAG (Retrieval-Augmented Generation) Manifold Pipeline** that integrates external RAG systems with Ollama language models.
 
-### 2. Stock Data Pipeline v2.0 (NEW!)
+### 3. Stock Data Pipeline v2.0
 An **intelligent stock market pipeline** that provides:
 - Real-time stock data (prices, news, earnings, financials)
 - **Investment recommendations** with personalized advice
